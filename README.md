@@ -7,11 +7,8 @@
 - [Introduction](#-introduction)
 - [Key Features](#-key-features)
 - [Pipeline](#-pipeline)
-  - [1. HSV Color Detection](#1-hsv-color-detection)
-  - [2. Sliding Window Lane Detection](#2-sliding-window-lane-detection)
-  - [3. Bird's Eye View](#3-birds-eye-view)
-  - [4. MORAI + RANSAC Curve Fitting](#4-morai--ransac-curve-fitting)
-  - [5. Feature Matching](#5-feature-matching)
+  - [1. Sliding Window Lane Detection](#1-sliding-window-lane-detection)
+  - [2. MORAI + RANSAC Curve Fitting](#2-morai--ransac-curve-fitting)
 - [Project Files](#-project-files)
 - [Results](#-results)
 - [Tech Stack](#-tech-stack)
@@ -70,129 +67,157 @@ RANSAC 단계에서는 MORAI Simulator의 카메라 영상을 ROS Topic으로 �
 
 ## 🛠 Pipeline
 
-### 1. HSV Color Detection
+프로젝트에서는 차선 검출 방법을 단계적으로 발전시키며 두 가지 주요 파이프라인을 구현했습니다.
 
-OpenCV의 HSV 색상 공간을 이용해 특정 색상 영역을 분리했습니다.
-
-```python
-hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-mask = cv2.inRange(hsv, lower_bound, upper_bound)
-result = cv2.bitwise_and(image, image, mask=mask)
-```
-
-HSV의 Hue 값을 기준으로 색상 범위를 지정하여 BGR 기반 검출보다 직관적으로 원하는 색상 영역을 추출했습니다.
+1. **Sliding Window 기반 차선 검출**
+2. **MORAI Simulator + RANSAC Curve Fitting 기반 차선 추정**
 
 ---
 
-### 2. Sliding Window Lane Detection
+### 1. Sliding Window Lane Detection
 
-초기 차선 검출 단계에서는 ROI와 Threshold를 설정한 뒤, Bird's Eye View로 변환된 Binary Image에서 Sliding Window 방식으로 좌·우 차선 픽셀을 탐색했습니다.
+초기 차선 검출 단계에서는 도로 영상을 Bird's Eye View로 변환한 뒤, Binary Image에서 Sliding Window 방식으로 좌·우 차선을 추적했습니다.
+
+![Sliding Window Lane Detection Pipeline](src/pipeline_sliding_window.png)
+
+#### Pipeline
 
 ```text
-Camera / Video Image
-        ↓
-ROI Selection
-        ↓
-Threshold
-        ↓
-Perspective Transform
-        ↓
-Binary Image
-        ↓
-Sliding Window
-        ↓
-Polynomial Fitting
-        ↓
-Left / Right Lane
-        ↓
-Lane Visualization
+Bird's Eye View & Binary Lane Extraction
+                  ↓
+Sliding Window Lane Detection
+                  ↓
+Lane Area Visualization
 ```
 
-주요 과정
+#### ① Bird's Eye View & Binary Lane Extraction
 
-1. ROI 좌표 설정
-2. Threshold 조정
-3. Perspective Transform
-4. Sliding Window 기반 좌·우 차선 탐색
-5. Polynomial Fitting
-6. 차선 영역 시각화
-
----
-
-### 3. Bird's Eye View
-
-도로 영상의 원근 효과를 줄이기 위해 Perspective Transformation을 적용했습니다.
-
-```python
-M = cv2.getPerspectiveTransform(src, dst)
-bird_eye = cv2.warpPerspective(image, M, (width, height))
-```
-
-RANSAC 기반 최종 구조에서는 `util.py`의 `BEVTransform` 클래스로 카메라 파라미터를 이용한 Bird's Eye View 변환을 수행합니다.
+Perspective Transformation을 이용해 도로 영상을 위에서 내려다본 형태의 **Bird's Eye View**로 변환합니다.  
+이후 HLS Lightness Channel과 Threshold를 이용해 차선 영역을 Binary Image로 추출합니다.
 
 ```text
 Camera Image
-      ↓
-Camera Parameters
-      ↓
-Perspective Matrix
-      ↓
+     ↓
+Perspective Transform
+     ↓
 Bird's Eye View
+     ↓
+HLS Lightness Threshold
+     ↓
+Binary Lane Image
 ```
 
-차선 Pixel을 Bird's Eye View 좌표계에서 재구성한 뒤 RANSAC Curve Fitting에 사용하고, 검출한 차선을 다시 영상 좌표로 Projection할 수 있도록 구성했습니다.
+#### ② Sliding Window Lane Detection
+
+Binary Image의 하단 Histogram을 이용해 좌·우 차선의 시작 위치를 찾고, 여러 개의 Window를 아래에서 위로 이동시키며 차선 Pixel을 탐색합니다.
+
+탐색된 좌·우 차선 Point를 이용해 Polynomial Fitting을 수행하여 차선의 형태를 추정합니다.
+
+```text
+Binary Lane Image
+        ↓
+Histogram
+        ↓
+Left / Right Start Point
+        ↓
+Sliding Window Search
+        ↓
+Lane Pixel Collection
+        ↓
+Polynomial Fitting
+```
+
+#### ③ Lane Area Visualization
+
+추정된 좌측 차선과 우측 차선 사이의 영역을 채운 뒤, Inverse Perspective Transform을 적용하여 원본 카메라 시점으로 복원합니다.
+
+최종적으로 원본 영상 위에 검출된 주행 차선 영역을 Overlay하여 시각화합니다.
+
+```text
+Left / Right Lane
+        ↓
+Lane Area Fill
+        ↓
+Inverse Perspective Transform
+        ↓
+Original Image Overlay
+```
 
 ---
 
-### 4. MORAI + RANSAC Curve Fitting
+### 2. MORAI + RANSAC Curve Fitting
 
-RANSAC 기반 차선 검출의 최종 구조는 **`lane_detection.py` + `util.py`**로 구성되어 있습니다.
+하계 프로젝트에서는 MORAI Simulator와 ROS를 연동하고, 기존 Sliding Window 방식에서 확장하여 **Bird's Eye View + RANSAC Curve Fitting** 기반의 차선 추정 구조를 구현했습니다.
 
-`lane_detection.py`는 MORAI Simulator의 `/image_jpeg/compressed` Topic을 구독하며, `util.py`의 `BEVTransform`과 `CURVEFit`을 이용해 차선을 추정합니다.
+최종 RANSAC 구조는 **`lane_detection.py` + `util.py`**를 중심으로 동작합니다.
+
+![MORAI RANSAC Curve Fitting Pipeline](src/pipline_ransac.png)
+
+#### Pipeline
 
 ```text
-MORAI Simulator
-       ↓
-Camera Sensor
-       ↓
-/image_jpeg/compressed
-       ↓
-lane_detection.py
-       ↓
-ROI Mask
-       ↓
-Bird's Eye View
-       ↓
-White / Yellow Lane Binarization
-       ↓
+MORAI Camera Image
+        ↓
+ROI Masking
+        ↓
+Bird's Eye View Transform
+        ↓
+Lane Binarization
+        ↓
 Lane Pixel Reconstruction
-       ↓
-CURVEFit
-       ↓
-RANSACRegressor + Polynomial Features
-       ↓
-Left / Right Lane Curve
-       ↓
-Lane Center Path
-       ↓
-/lane_path
+        ↓
+RANSAC Curve Fitting & Lane Estimation
+        ↓
+Lane Center Path Generation
+        ↓
+/lane_path Publish
 ```
 
-#### RANSAC Curve Fitting
+#### ① ROI Masking
 
-`util.py`의 `CURVEFit` 클래스에서는 `scikit-learn`의 `RANSACRegressor`를 이용합니다.
+MORAI Simulator의 `/image_jpeg/compressed` 카메라 영상을 수신한 뒤, 전체 영상에서 차선 검출에 필요한 도로 영역만 ROI로 설정합니다.
 
-```python
-self.ransac_left = linear_model.RANSACRegressor(
-    base_estimator=linear_model.Lasso(alpha=alpha),
-    max_trials=self.max_trials,
-    loss='absolute_loss',
-    min_samples=self.min_pts,
-    residual_threshold=self.y_margin
-)
+ROI 외부 영역을 제거하여 이후 영상처리 과정에서 불필요한 정보를 줄입니다.
+
+#### ② Bird's Eye View Transform
+
+`util.py`의 `BEVTransform`을 이용해 카메라 영상을 위에서 내려다보는 형태의 **Bird's Eye View**로 변환합니다.
+
+원근 효과를 줄여 차선의 위치와 곡률을 보다 단순한 형태로 처리할 수 있도록 합니다.
+
+#### ③ Lane Binarization
+
+Bird's Eye View 영상에서 흰색 및 노란색 차선 영역을 분리하여 하나의 Binary Lane Mask를 생성합니다.
+
+```text
+BEV Image
+    ↓
+White Lane Mask
+    +
+Yellow Lane Mask
+    ↓
+Binary Lane Image
 ```
 
-좌·우 차선은 각각 독립적인 RANSAC 모델을 사용하며, 차선 Point의 X 좌표를 다항식 Feature로 변환하여 Curve를 추정합니다.
+#### ④ Lane Pixel Reconstruction
+
+Binary Image에서 차선에 해당하는 Pixel을 추출하고, 이미지 좌표 `(u, v)`를 Bird's Eye View 기준의 차선 좌표 `(x, y)`로 변환합니다.
+
+```text
+Binary lane pixels (u, v)
+            ↓
+Coordinate Reconstruction
+            ↓
+Reconstructed lane points (x, y)
+```
+
+이렇게 복원된 좌표는 이후 RANSAC Curve Fitting의 입력 Point로 사용됩니다.
+
+#### ⑤ RANSAC Curve Fitting & Lane Estimation
+
+`util.py`의 `CURVEFit` 클래스에서 `scikit-learn`의 `RANSACRegressor`를 이용하여 좌·우 차선을 각각 추정합니다.
+
+차선 Point의 X 좌표를 Polynomial Feature로 변환한 뒤 RANSAC을 적용하여 Outlier의 영향을 줄이고 차선을 잘 설명하는 Curve를 추정합니다.
 
 ```text
 Lane Points
@@ -201,81 +226,38 @@ Polynomial Features
     ↓
 Left / Right Point Selection
     ↓
-RANSAC Fitting
+RANSAC Curve Fitting
     ↓
 Outlier Rejection
     ↓
-Left / Right Curve Prediction
+Left / Right Lane Estimation
 ```
 
-메인 노드에서는 다음과 같이 `order=3`인 Curve Fitting 모델을 생성합니다.
+직선 구간뿐 아니라 곡선 구간에서도 동일한 구조로 좌·우 차선을 추정할 수 있도록 구성했습니다.
+
+#### ⑥ Lane Center Path Generation
+
+RANSAC으로 추정된 좌·우 차선의 중앙값을 계산하여 차량이 따라갈 **중심 경로**를 생성합니다.
 
 ```python
-curve_learner = CURVEFit(
-    order=3,
-    lane_width=3.5,
-    y_margin=1,
-    x_range=30,
-    min_pts=50
-)
+center_y = 0.5 * (y_pred_l + y_pred_r)
 ```
 
-#### Lane Path 생성
-
-추정된 좌·우 차선의 중앙값을 계산하여 ROS `Path` 메시지를 생성합니다.
-
-```python
-tmp_pose.pose.position.x = x_pred[i]
-tmp_pose.pose.position.y = 0.5 * (y_pred_l[i] + y_pred_r[i])
-```
-
-생성된 경로는 다음 Topic으로 Publish됩니다.
+생성된 중심 경로는 ROS `Path` 메시지로 변환되어 `/lane_path` Topic으로 Publish됩니다.
 
 ```text
-/lane_path
+Left Lane     Right Lane
+     \         /
+      \       /
+       Center Path
+           ↓
+      /lane_path
 ```
 
-이를 통해 차선 검출 결과를 이후 차량 제어 알고리즘에서 사용할 수 있도록 구성했습니다.
-
-#### Development Process
-
-RANSAC 구현 과정에서는 여러 형태의 실험 코드를 작성했습니다.
-
-```text
-직선 기반 RANSAC 실험
-        ↓
-직접 구현한 RANSAC Line Fitting
-        ↓
-scikit-learn RANSACRegressor 적용
-        ↓
-Polynomial Curve Fitting
-        ↓
-BEVTransform + CURVEFit 모듈화
-        ↓
-lane_detection.py 최종 통합 구조
-```
+이를 통해 영상 기반 차선 검출 결과를 이후 차량 주행 제어 알고리즘에서 사용할 수 있는 경로 정보로 연결했습니다.
 
 ---
 
-### 5. Feature Matching
-
-ORB와 BFMatcher를 이용하여 두 영상 사이의 특징점을 매칭했습니다.
-
-```text
-Image A ── ORB ── Descriptor A
-                         ↓
-                    BFMatcher
-                         ↑
-Image B ── ORB ── Descriptor B
-                         ↓
-                   Good Matches
-```
-
-- ORB 기반 Keypoint / Descriptor 생성
-- `cv2.NORM_HAMMING` 기반 거리 계산
-- 가까운 Descriptor만 선별하여 올바른 매칭점 추출
-
----
 
 ## 📁 Project Files
 
