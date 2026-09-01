@@ -2,7 +2,7 @@
 
 > OpenCV 기반 영상처리 기법을 학습하고, 차선 검출부터 Bird's Eye View 및 RANSAC 기반 곡선 차선 추정까지 단계적으로 구현한 프로젝트입니다.
 
-<p align="left">
+<p align="center">
   <img src="https://img.shields.io/badge/Python-3.8-3776AB?logo=python&logoColor=white">
   <img src="https://img.shields.io/badge/ROS-Noetic-22314E?logo=ros&logoColor=white">
   <img src="https://img.shields.io/badge/Ubuntu-20.04-E95420?logo=ubuntu&logoColor=white">
@@ -11,25 +11,14 @@
   <img src="https://img.shields.io/badge/scikit--learn-0.24.2-F7931E?logo=scikitlearn&logoColor=white">
 </p>
 
+<p align="center">
+  <img src="src/sliding_linefitting.gif" width="48%">
+  <img src="src/lanedetection_rancsac.gif" width="48%">
+</p>
 
-## 🎬 Demo
-
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <b>Sliding Window Lane Detection</b><br><br>
-      <img src="src/sliding_linefitting.gif" width="100%">
-    </td>
-    <td align="center" width="50%">
-      <b>MORAI + RANSAC Curve Fitting</b><br><br>
-      <img src="src/lanedetection_rancsac.gif" width="100%">
-    </td>
-  </tr>
-</table>
 
 ## 📑 Overview
 
-- [Demo](#-demo)
 - [Introduction](#-introduction)
 - [Key Features](#-key-features)
 - [Pipeline](#-pipeline)
@@ -94,16 +83,6 @@ RANSAC 단계에서는 MORAI Simulator의 카메라 영상을 ROS Topic으로 �
 
 ![Sliding Window Lane Detection Pipeline](src/pipeline_sliding_window.png)
 
-#### Pipeline
-
-```text
-Bird's Eye View & Binary Lane Extraction
-                  ↓
-Sliding Window Lane Detection
-                  ↓
-Lane Area Visualization
-```
-
 #### ① Bird's Eye View & Binary Lane Extraction
 
 Perspective Transformation을 이용해 도로 영상을 위에서 내려다본 형태의 **Bird's Eye View**로 변환합니다.  
@@ -166,26 +145,6 @@ Original Image Overlay
 최종 RANSAC 구조는 **`lane_detection.py` + `util.py`**를 중심으로 동작합니다.
 
 ![MORAI RANSAC Curve Fitting Pipeline](src/pipline_ransac.png)
-
-#### Pipeline
-
-```text
-MORAI Camera Image
-        ↓
-ROI Masking
-        ↓
-Bird's Eye View Transform
-        ↓
-Lane Binarization
-        ↓
-Lane Pixel Reconstruction
-        ↓
-RANSAC Curve Fitting & Lane Estimation
-        ↓
-Lane Center Path Generation
-        ↓
-/lane_path Publish
-```
 
 #### ① ROI Masking
 
