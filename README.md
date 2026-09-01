@@ -72,162 +72,39 @@ RANSAC 단계에서는 MORAI Simulator의 카메라 영상을 ROS Topic으로 �
 
 프로젝트에서는 차선 검출 방법을 단계적으로 발전시키며 두 가지 주요 파이프라인을 구현했습니다.
 
-1. **Sliding Window 기반 차선 검출**
-2. **MORAI Simulator + RANSAC Curve Fitting 기반 차선 추정**
-
----
-
 ### 1. Sliding Window Lane Detection
-
-초기 차선 검출 단계에서는 도로 영상을 Bird's Eye View로 변환한 뒤, Binary Image에서 Sliding Window 방식으로 좌·우 차선을 추적했습니다.
 
 ![Sliding Window Lane Detection Pipeline](src/pipeline_sliding_window.png)
 
-#### ① Bird's Eye View & Binary Lane Extraction
+초기 차선 검출 단계에서는 도로 영상을 Bird's Eye View로 변환한 뒤, HLS Lightness Channel과 Threshold를 이용해 차선 영역을 Binary Image로 추출했습니다.
 
-Perspective Transformation을 이용해 도로 영상을 위에서 내려다본 형태의 **Bird's Eye View**로 변환합니다.  
-이후 HLS Lightness Channel과 Threshold를 이용해 차선 영역을 Binary Image로 추출합니다.
-
-```text
-Camera Image
-     ↓
-Perspective Transform
-     ↓
-Bird's Eye View
-     ↓
-HLS Lightness Threshold
-     ↓
-Binary Lane Image
-```
-
-#### ② Sliding Window Lane Detection
-
-Binary Image의 하단 Histogram을 이용해 좌·우 차선의 시작 위치를 찾고, 여러 개의 Window를 아래에서 위로 이동시키며 차선 Pixel을 탐색합니다.
-
-탐색된 좌·우 차선 Point를 이용해 Polynomial Fitting을 수행하여 차선의 형태를 추정합니다.
-
-```text
-Binary Lane Image
-        ↓
-Histogram
-        ↓
-Left / Right Start Point
-        ↓
-Sliding Window Search
-        ↓
-Lane Pixel Collection
-        ↓
-Polynomial Fitting
-```
-
-#### ③ Lane Area Visualization
-
-추정된 좌측 차선과 우측 차선 사이의 영역을 채운 뒤, Inverse Perspective Transform을 적용하여 원본 카메라 시점으로 복원합니다.
-
-최종적으로 원본 영상 위에 검출된 주행 차선 영역을 Overlay하여 시각화합니다.
-
-```text
-Left / Right Lane
-        ↓
-Lane Area Fill
-        ↓
-Inverse Perspective Transform
-        ↓
-Original Image Overlay
-```
+Binary Image의 하단 Histogram을 기준으로 좌·우 차선의 시작점을 찾고, Sliding Window를 아래에서 위로 이동시키며 차선 Pixel을 수집했습니다. 이후 Polynomial Fitting으로 좌·우 차선을 추정하고, 두 차선 사이 영역을 원본 영상에 Overlay하여 시각화했습니다.
 
 ---
 
 ### 2. MORAI + RANSAC Curve Fitting
 
-하계 프로젝트에서는 MORAI Simulator와 ROS를 연동하고, 기존 Sliding Window 방식에서 확장하여 **Bird's Eye View + RANSAC Curve Fitting** 기반의 차선 추정 구조를 구현했습니다.
-
-최종 RANSAC 구조는 **`lane_detection.py` + `util.py`**를 중심으로 동작합니다.
-
 ![MORAI RANSAC Curve Fitting Pipeline](src/pipline_ransac.png)
 
-#### ① ROI Masking
+하계 프로젝트에서는 MORAI Simulator와 ROS를 연동하고, `lane_detection.py`와 `util.py`를 중심으로 Bird's Eye View + RANSAC Curve Fitting 구조를 구현했습니다.
 
-MORAI Simulator의 `/image_jpeg/compressed` 카메라 영상을 수신한 뒤, 전체 영상에서 차선 검출에 필요한 도로 영역만 ROI로 설정합니다.
+#### ROI Masking
+MORAI의 `/image_jpeg/compressed` 카메라 영상에서 차선 검출에 필요한 도로 영역만 ROI로 설정합니다.
 
-ROI 외부 영역을 제거하여 이후 영상처리 과정에서 불필요한 정보를 줄입니다.
+#### Bird's Eye View Transform
+`BEVTransform`을 이용해 카메라 영상을 위에서 내려다보는 형태로 변환하여 원근 효과를 줄입니다.
 
-#### ② Bird's Eye View Transform
+#### Lane Binarization
+흰색 및 노란색 차선 영역을 분리하여 Binary Lane Mask를 생성합니다.
 
-`util.py`의 `BEVTransform`을 이용해 카메라 영상을 위에서 내려다보는 형태의 **Bird's Eye View**로 변환합니다.
+#### Lane Pixel Reconstruction
+Binary Image의 차선 Pixel 좌표 `(u, v)`를 Bird's Eye View 기준의 차선 좌표 `(x, y)`로 변환합니다.
 
-원근 효과를 줄여 차선의 위치와 곡률을 보다 단순한 형태로 처리할 수 있도록 합니다.
+#### RANSAC Curve Fitting
+`CURVEFit`에서 `scikit-learn`의 `RANSACRegressor`를 이용해 좌·우 차선을 각각 추정합니다. 다항식 Feature를 적용하여 Outlier의 영향을 줄이고, 직선 및 곡선 구간에서 안정적으로 차선을 추정하도록 구성했습니다.
 
-#### ③ Lane Binarization
-
-Bird's Eye View 영상에서 흰색 및 노란색 차선 영역을 분리하여 하나의 Binary Lane Mask를 생성합니다.
-
-```text
-BEV Image
-    ↓
-White Lane Mask
-    +
-Yellow Lane Mask
-    ↓
-Binary Lane Image
-```
-
-#### ④ Lane Pixel Reconstruction
-
-Binary Image에서 차선에 해당하는 Pixel을 추출하고, 이미지 좌표 `(u, v)`를 Bird's Eye View 기준의 차선 좌표 `(x, y)`로 변환합니다.
-
-```text
-Binary lane pixels (u, v)
-            ↓
-Coordinate Reconstruction
-            ↓
-Reconstructed lane points (x, y)
-```
-
-이렇게 복원된 좌표는 이후 RANSAC Curve Fitting의 입력 Point로 사용됩니다.
-
-#### ⑤ RANSAC Curve Fitting & Lane Estimation
-
-`util.py`의 `CURVEFit` 클래스에서 `scikit-learn`의 `RANSACRegressor`를 이용하여 좌·우 차선을 각각 추정합니다.
-
-차선 Point의 X 좌표를 Polynomial Feature로 변환한 뒤 RANSAC을 적용하여 Outlier의 영향을 줄이고 차선을 잘 설명하는 Curve를 추정합니다.
-
-```text
-Lane Points
-    ↓
-Polynomial Features
-    ↓
-Left / Right Point Selection
-    ↓
-RANSAC Curve Fitting
-    ↓
-Outlier Rejection
-    ↓
-Left / Right Lane Estimation
-```
-
-직선 구간뿐 아니라 곡선 구간에서도 동일한 구조로 좌·우 차선을 추정할 수 있도록 구성했습니다.
-
-#### ⑥ Lane Center Path Generation
-
-RANSAC으로 추정된 좌·우 차선의 중앙값을 계산하여 차량이 따라갈 **중심 경로**를 생성합니다.
-
-```python
-center_y = 0.5 * (y_pred_l + y_pred_r)
-```
-
-생성된 중심 경로는 ROS `Path` 메시지로 변환되어 `/lane_path` Topic으로 Publish됩니다.
-
-```text
-Left Lane     Right Lane
-     \         /
-      \       /
-       Center Path
-           ↓
-      /lane_path
-```
-
-이를 통해 영상 기반 차선 검출 결과를 이후 차량 주행 제어 알고리즘에서 사용할 수 있는 경로 정보로 연결했습니다.
+#### Lane Center Path Generation
+추정된 좌·우 차선의 중앙값을 이용해 차량이 따라갈 중심 경로를 생성하고, ROS `Path` 메시지로 `/lane_path` Topic에 Publish합니다.
 
 ---
 
