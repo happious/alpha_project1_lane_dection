@@ -90,27 +90,27 @@ Binary Image의 하단 Histogram을 기준으로 좌·우 차선의 시작점을
 
 #### 1. ROI Masking
 
-MORAI의 `/image_jpeg/compressed` 카메라 영상에서 차선 검출에 필요한 도로 영역만 ROI로 설정합니다.
+- MORAI의 `/image_jpeg/compressed` 카메라 영상에서 차선 검출에 필요한 도로 영역만 ROI로 설정합니다.
 
 #### 2. Bird's Eye View Transform
 
-`BEVTransform`을 이용해 카메라 영상을 위에서 내려다보는 형태로 변환하여 원근 효과를 줄입니다.
+- `BEVTransform`을 이용해 카메라 영상을 위에서 내려다보는 형태로 변환하여 원근 효과를 줄입니다.
 
 #### 3. Lane Binarization
 
-흰색 및 노란색 차선 영역을 분리하여 Binary Lane Mask를 생성합니다.
+- 흰색 및 노란색 차선 영역을 분리하여 Binary Lane Mask를 생성합니다.
 
 #### 4. Lane Pixel Reconstruction
 
-Binary Image의 차선 Pixel 좌표 `(u, v)`를 Bird's Eye View 기준의 차선 좌표 `(x, y)`로 변환합니다.
+- Binary Image의 차선 Pixel 좌표 `(u, v)`를 Bird's Eye View 기준의 차선 좌표 `(x, y)`로 변환합니다.
 
 #### 5. RANSAC Curve Fitting
 
-`CURVEFit`에서 `scikit-learn`의 `RANSACRegressor`를 이용해 좌·우 차선을 각각 추정합니다. 다항식 Feature를 적용하여 Outlier의 영향을 줄이고, 직선 및 곡선 구간에서 안정적으로 차선을 추정하도록 구성했습니다.
+- `CURVEFit`에서 `scikit-learn`의 `RANSACRegressor`를 이용해 좌·우 차선을 각각 추정합니다. 다항식 Feature를 적용하여 Outlier의 영향을 줄이고, 직선 및 곡선 구간에서 안정적으로 차선을 추정하도록 구성했습니다.
 
 #### 6. Lane Center Path Generation
 
-추정된 좌·우 차선의 중앙값을 이용해 차량이 따라갈 중심 경로를 생성하고, ROS `Path` 메시지로 `/lane_path` Topic에 Publish합니다.
+- 추정된 좌·우 차선의 중앙값을 이용해 차량이 따라갈 중심 경로를 생성하고, ROS `Path` 메시지로 `/lane_path` Topic에 Publish합니다.
 
 ---
 
