@@ -1,6 +1,7 @@
 # Alpha Project 1: OpenCV-based Lane Detection
 
 > OpenCV 기반 영상처리 기법을 학습하고, 차선 검출부터 Bird's Eye View 및 RANSAC 기반 곡선 차선 추정까지 단계적으로 구현한 프로젝트입니다.
+
 <p align="left">
   <img src="https://img.shields.io/badge/Python-3.8-3776AB?logo=python&logoColor=white">
   <img src="https://img.shields.io/badge/ROS-Noetic-22314E?logo=ros&logoColor=white">
@@ -9,6 +10,7 @@
   <img src="https://img.shields.io/badge/NumPy-1.19.5-013243?logo=numpy&logoColor=white">
   <img src="https://img.shields.io/badge/scikit--learn-0.24.2-F7931E?logo=scikitlearn&logoColor=white">
 </p>
+
 
 ## 📑 Overview
 
@@ -253,6 +255,15 @@ center_y = 0.5 * (y_pred_l + y_pred_r)
 
 생성된 중심 경로는 ROS `Path` 메시지로 변환되어 `/lane_path` Topic으로 Publish됩니다.
 
+```text
+Left Lane     Right Lane
+     \         /
+      \       /
+       Center Path
+           ↓
+      /lane_path
+```
+
 이를 통해 영상 기반 차선 검출 결과를 이후 차량 주행 제어 알고리즘에서 사용할 수 있는 경로 정보로 연결했습니다.
 
 ---
@@ -303,181 +314,67 @@ RANSAC 및 MORAI 차선 검출 관련 주요 파일은 다음과 같습니다.
 | Robot Middleware | ROS1 (`rospy`) |
 | Simulator | MORAI Simulator |
 | ROS Messages | `sensor_msgs`, `nav_msgs`, `geometry_msgs`, `morai_msgs` |
-| Symbolic Math | SymPy *(초기 RANSAC 실험 코드)* |
 
 ---
 
 ## ⚙️ Development Environment
 
-본 프로젝트는 ROS1 기반 레거시 환경에서 개발되었으며, 현재 코드를 재현할 경우 아래 환경을 권장합니다.
+본 프로젝트는 **ROS1 기반 레거시 환경**을 기준으로 작성되었습니다.
 
-- **OS:** Ubuntu 20.04
-- **ROS:** ROS Noetic
-- **Python:** 3.8.x
-- **NumPy:** 1.19.5
-- **OpenCV:** 4.5.x
-- **scikit-learn:** 0.24.2
+| Environment | Version |
+|---|---|
+| Ubuntu | 20.04 |
+| ROS | Noetic |
+| Python | 3.8.x |
+| NumPy | 1.19.5 |
+| OpenCV | 4.5.x |
+| scikit-learn | 0.24.2 |
 
 ```bash
 pip3 install numpy==1.19.5 opencv-python==4.5.5.64 scikit-learn==0.24.2
+```
+
+> 일부 코드에서 `np.int` 및 구버전 `RANSACRegressor` API를 사용하므로 최신 라이브러리에서는 호환성 문제가 발생할 수 있습니다.
 
 ---
+
 
 ## ▶️ How to Run
 
-### 1. Sliding Window 코드 실행
+### 1. Sliding Window Lane Detection
 
-`sliding_window_lane_detection.py`는 `xycar_track1.mp4`를 직접 읽는 독립 실행형 코드입니다.
-
-```text
-project/
-├── sliding_window_lane_detection.py
-└── xycar_track1.mp4
-```
-
-두 파일을 같은 디렉터리에 둔 뒤 실행합니다.
+`sliding_window_lane_detection.py`와 `xycar_track1.mp4`를 같은 폴더에 둔 뒤 실행합니다.
 
 ```bash
-python3 sliding_window_lane_detection.py
+python3 src/sliding_window_lane_detection.py
 ```
 
-> 저장된 코드에는 `cv2.waitKey(0)`가 사용되어 있어 프레임마다 키 입력을 기다립니다.  
-> 연속 영상으로 확인하려면 필요에 따라 `cv2.waitKey(1)`로 변경할 수 있습니다.
+> 저장된 코드의 `cv2.waitKey(0)`을 `cv2.waitKey(1)`로 변경하면 영상을 연속 재생할 수 있습니다.
 
----
+### 2. MORAI + RANSAC Lane Detection
 
-### 2. MORAI RANSAC Lane Detection 실행
-
-MORAI 기반 RANSAC 차선 검출은 단일 Python 파일 실행이 아니라 **MORAI Simulator + ROS1 + ROS Package** 환경에서 동작합니다.
-
-대표적인 파일 구성은 다음과 같습니다.
-
-```text
-catkin_ws/
-└── src/
-    └── beginner_tutorials/
-        ├── scripts/
-        │   ├── lane_detection.py
-        │   ├── util.py
-        │   ├── moria+roi.py
-        │   └── 카메라실행노드.py
-        └── sensor/
-            └── sensor_params.json
-```
-
-`lane_detection.py`는 코드 내부에서 다음 ROS Package를 찾습니다.
-
-```python
-currentPath = rospkg.RosPack().get_path("beginner_tutorials")
-```
-
-그리고 다음 파일에서 카메라 파라미터를 읽습니다.
-
-```text
-beginner_tutorials/sensor/sensor_params.json
-```
-
-#### Step 1. ROS 환경 실행
+MORAI Simulator와 ROS1이 실행 중이고 `/image_jpeg/compressed` Topic이 수신되는 상태에서 실행합니다.
 
 ```bash
 roscore
-```
-
-다른 Terminal에서는 Workspace를 Source합니다.
-
-```bash
 source ~/catkin_ws/devel/setup.bash
-```
-
-#### Step 2. MORAI Simulator 실행
-
-MORAI Simulator와 ROS 통신 환경을 실행하고 카메라 Topic이 생성되는지 확인합니다.
-
-```bash
-rostopic list
-```
-
-차선 검출 노드는 다음 Topic을 사용합니다.
-
-```text
-/image_jpeg/compressed
-```
-
-#### Step 3. 카메라 영상 확인
-
-카메라 영상 수신 여부를 먼저 확인할 수 있습니다.
-
-```bash
-rosrun beginner_tutorials 카메라실행노드.py
-```
-
-카메라 영상이 정상적으로 OpenCV 창에 표시되면 ROS Camera Topic이 정상적으로 들어오는 상태입니다.
-
-#### Step 4. ROI 좌표 확인
-
-필요하면 `morai_roi.py`를 이용해 MORAI 카메라 영상에서 ROI 좌표를 확인합니다.
-
-```bash
-rosrun beginner_tutorials moria+roi.py
-```
-
-영상 위의 Point를 클릭하여 좌표를 확인하고 차선 검출 ROI 설정에 사용합니다.
-
-#### Step 5. HSV / ROI Parameter 설정
-
-현재 보관된 `lane_detection.py`에는 다음 값이 Placeholder 상태로 남아 있습니다.
-
-```python
-self.lower_wlane = np.array([0,0,0])
-self.upper_wlane = np.array([0,0,0])
-
-self.lower_ylane = np.array([0,0,0])
-self.upper_ylane = np.array([0,0,0])
-
-self.crop_pts = np.array([[[0,0],[0,0],[0,0],[0,0]]])
-```
-
-따라서 실제 차선 검출 전에 환경에 맞는 다음 값을 설정해야 합니다.
-
-- White Lane HSV Range
-- Yellow Lane HSV Range
-- ROI 4 Point 좌표
-
-#### Step 6. Main Lane Detection Node 실행
-
-파라미터 설정 후 메인 노드를 실행합니다.
-
-```bash
 rosrun beginner_tutorials lane_detection.py
 ```
 
-정상적으로 실행되면 다음 과정이 반복됩니다.
+실행 전 아래 항목이 설정되어 있어야 합니다.
 
-```text
-/image_jpeg/compressed
-        ↓
-ROI Mask
-        ↓
-Bird's Eye View
-        ↓
-Lane Binarization
-        ↓
-Lane Point Reconstruction
-        ↓
-RANSAC Curve Fitting
-        ↓
-Left / Right Lane
-        ↓
-/lane_path
-```
+- `sensor/sensor_params.json`
+- White / Yellow Lane HSV Range
+- ROI 4 Point 좌표
 
-ROS Topic으로 생성된 Lane Path는 다음 명령으로 확인할 수 있습니다.
+검출된 차선 중심 경로는 `/lane_path` Topic으로 Publish됩니다.
 
 ```bash
 rostopic echo /lane_path
 ```
 
 ---
+
 
 ## 📚 What I Learned
 
