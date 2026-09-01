@@ -12,8 +12,24 @@
 </p>
 
 
+## 🎬 Demo
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <b>Sliding Window Lane Detection</b><br><br>
+      <img src="src/sliding_linefitting.gif" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <b>MORAI + RANSAC Curve Fitting</b><br><br>
+      <img src="src/lanedetection_rancsac.gif" width="100%">
+    </td>
+  </tr>
+</table>
+
 ## 📑 Overview
 
+- [Demo](#-demo)
 - [Introduction](#-introduction)
 - [Key Features](#-key-features)
 - [Pipeline](#-pipeline)
@@ -41,10 +57,6 @@ RANSAC 단계에서는 MORAI Simulator의 카메라 영상을 ROS Topic으로 �
 
 ## 🔑 Key Features
 
-- **HSV 기반 색상 영역 검출**
-  - BGR 이미지를 HSV Color Space로 변환
-  - Threshold 기반 특정 색상 영역 분리
-
 - **Sliding Window 기반 차선 검출**
   - Binary Image에서 좌·우 차선 픽셀 탐색
   - Polynomial Fitting을 이용한 차선 곡선 추정
@@ -64,14 +76,6 @@ RANSAC 단계에서는 MORAI Simulator의 카메라 영상을 ROS Topic으로 �
   - `/image_jpeg/compressed` 카메라 Topic 구독
   - 검출된 좌·우 차선의 중앙을 ROS `Path` 메시지로 변환
   - `/lane_path` Topic으로 Publish
-
-- **Filter / Edge Detection 비교**
-  - Average, Gaussian Blur
-  - Roberts Cross, Prewitt, Sobel, Scharr
-
-- **ORB Feature Matching**
-  - ORB 특징점 추출
-  - BFMatcher + Hamming Distance 기반 이미지 매칭
 
 ---
 
