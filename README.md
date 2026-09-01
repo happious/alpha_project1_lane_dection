@@ -1,6 +1,14 @@
 # Alpha Project 1: OpenCV-based Lane Detection
 
 > OpenCV 기반 영상처리 기법을 학습하고, 차선 검출부터 Bird's Eye View 및 RANSAC 기반 곡선 차선 추정까지 단계적으로 구현한 프로젝트입니다.
+<p align="left">
+  <img src="https://img.shields.io/badge/Python-3.8-3776AB?logo=python&logoColor=white">
+  <img src="https://img.shields.io/badge/ROS-Noetic-22314E?logo=ros&logoColor=white">
+  <img src="https://img.shields.io/badge/Ubuntu-20.04-E95420?logo=ubuntu&logoColor=white">
+  <img src="https://img.shields.io/badge/OpenCV-4.5.x-5C3EE8?logo=opencv&logoColor=white">
+  <img src="https://img.shields.io/badge/NumPy-1.19.5-013243?logo=numpy&logoColor=white">
+  <img src="https://img.shields.io/badge/scikit--learn-0.24.2-F7931E?logo=scikitlearn&logoColor=white">
+</p>
 
 ## 📑 Overview
 
@@ -245,15 +253,6 @@ center_y = 0.5 * (y_pred_l + y_pred_r)
 
 생성된 중심 경로는 ROS `Path` 메시지로 변환되어 `/lane_path` Topic으로 Publish됩니다.
 
-```text
-Left Lane     Right Lane
-     \         /
-      \       /
-       Center Path
-           ↓
-      /lane_path
-```
-
 이를 통해 영상 기반 차선 검출 결과를 이후 차량 주행 제어 알고리즘에서 사용할 수 있는 경로 정보로 연결했습니다.
 
 ---
@@ -310,61 +309,17 @@ RANSAC 및 MORAI 차선 검출 관련 주요 파일은 다음과 같습니다.
 
 ## ⚙️ Development Environment
 
-현재 남아 있는 코드에는 구버전 NumPy / scikit-learn API가 포함되어 있어 최신 Python 환경보다 **ROS1 기반 레거시 환경**에서 재현하는 것을 권장합니다.
+본 프로젝트는 ROS1 기반 레거시 환경에서 개발되었으며, 현재 코드를 재현할 경우 아래 환경을 권장합니다.
 
-### Recommended Reproduction Environment
-
-| Package | Recommended Version |
-|---|---|
-| OS | Ubuntu 20.04 |
-| ROS | ROS Noetic |
-| Python | 3.8.x |
-| NumPy | 1.19.5 |
-| OpenCV | 4.5.x |
-| scikit-learn | 0.24.2 |
-| SymPy | 1.8 *(초기 실험 코드 실행 시)* |
-
-> 위 버전은 당시 프로젝트에서 `pip freeze`로 기록한 정확한 환경이 아니라,  
-> 현재 보관된 소스 코드의 API 사용 방식에 맞춘 **재현용 권장 환경**입니다.
-
-### Compatibility Note
-
-초기 Sliding Window 코드에는 다음과 같은 구버전 NumPy API가 포함되어 있습니다.
-
-```python
-np.int(...)
-```
-
-따라서 최신 NumPy에서는 해당 코드를 그대로 실행할 경우 호환성 오류가 발생할 수 있습니다.
-
-또한 RANSAC Curve Fitting 코드에서는 구버전 scikit-learn API인 다음 인자를 사용합니다.
-
-```python
-RANSACRegressor(
-    base_estimator=...,
-    loss='absolute_loss'
-)
-```
-
-현재 코드를 수정하지 않고 재현하려는 경우 위의 권장 버전을 사용하는 것이 편리합니다.
-
-### Python Dependencies
-
-ROS 환경 외 Python 패키지는 다음과 같이 설치할 수 있습니다.
+- **OS:** Ubuntu 20.04
+- **ROS:** ROS Noetic
+- **Python:** 3.8.x
+- **NumPy:** 1.19.5
+- **OpenCV:** 4.5.x
+- **scikit-learn:** 0.24.2
 
 ```bash
-pip3 install numpy==1.19.5
-pip3 install opencv-python==4.5.5.64
-pip3 install scikit-learn==0.24.2
-```
-
-초기 `ransac_move.py`까지 실행하려면 SymPy를 추가합니다.
-
-```bash
-pip3 install sympy==1.8
-```
-
-ROS의 `rospy`, `cv_bridge`, `sensor_msgs`, `nav_msgs`, `geometry_msgs`와 MORAI의 `morai_msgs`는 ROS 환경에서 별도로 구성되어 있어야 합니다.
+pip3 install numpy==1.19.5 opencv-python==4.5.5.64 scikit-learn==0.24.2
 
 ---
 
